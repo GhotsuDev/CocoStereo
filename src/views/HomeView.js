@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, FlatList, Image, StyleSheet, Alert, Modal } from 'react-native';
+import { View, Text, TouchableOpacity, FlatList, Image, StyleSheet, Alert, Modal, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Checkbox from 'expo-checkbox';
 import * as Print from 'expo-print';
@@ -9,9 +9,21 @@ import { COLORS } from '../styles/colors';
 import AnimatedInput from '../components/AnimatedInput';
 import StarRating from '../components/StarRating';
 import AudioPlayer from '../components/AudioPlayer'; // NUEVO REPRODUCTOR
-import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 
-const API_URL = 'http://192.168.1.103:3000'; // ⚠️ REVISA TU IP
+
+const getApiUrl = () => {
+  if (Platform.OS === 'web') return 'http://localhost:3000';
+  
+  const debuggerHost = Constants.expoConfig?.hostUri;
+  if (debuggerHost) {
+    const ip = debuggerHost.split(':')[0]; // Extrae solo la IP
+    return `http://${ip}:3000`;
+  }
+  return 'http://192.168.1.103:3000'; // Fallback de seguridad
+};
+
+const API_URL = getApiUrl();
 
 export default function HomeView({ usuario, onLogout, onEditProfile, setIsPlayingGlobal }) {
   const [canciones, setCanciones] = useState([]);

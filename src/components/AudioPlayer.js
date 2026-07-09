@@ -31,7 +31,7 @@ export default function AudioPlayer({ cancionActual, onNext, onPrev, setIsPlayin
       setErrorCarga(false);
       // ⚠️ Asegúrate de que esta sea tu IP real
       const uri = cancionActual.url_audio.startsWith('/uploads') 
-        ? `http://192.168.1.103:3000${cancionActual.url_audio}` 
+        ? `http://172.30.66.91:3000${cancionActual.url_audio}` 
         : cancionActual.url_audio;
         
       console.log("Intentando reproducir URI:", uri); // <-- ESTO NOS DIRÁ EL PROBLEMA

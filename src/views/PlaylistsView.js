@@ -1,11 +1,22 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, FlatList, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, FlatList, StyleSheet, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../styles/colors';
 import AudioPlayer from '../components/AudioPlayer';
+import Constants from 'expo-constants';
 
-// ⚠️ TU IP ACTUAL
-const API_URL = 'http://192.168.1.103:3000'; 
+const getApiUrl = () => {
+  if (Platform.OS === 'web') return 'http://localhost:3000';
+  
+  const debuggerHost = Constants.expoConfig?.hostUri;
+  if (debuggerHost) {
+    const ip = debuggerHost.split(':')[0]; // Extrae solo la IP
+    return `http://${ip}:3000`;
+  }
+  return 'http://192.168.1.103:3000'; // Fallback de seguridad
+};
+
+const API_URL = getApiUrl();
 
 export default function PlaylistsView({ usuario, onVolver, setIsPlayingGlobal }) {
   const [playlists, setPlaylists] = useState([]);

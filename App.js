@@ -7,9 +7,20 @@ import AuroraBackground from './src/components/AuroraBackground';
 import { COLORS } from './src/styles/colors';
 import { Ionicons } from '@expo/vector-icons';
 import PlaylistsView from './src/views/PlaylistsView';
+import Constants from 'expo-constants';
 
-// ⚠️ TU IP AQUI
-const API_URL = 'http://192.168.1.103:3000'; 
+const getApiUrl = () => {
+  if (Platform.OS === 'web') return 'http://localhost:3000';
+  
+  const debuggerHost = Constants.expoConfig?.hostUri;
+  if (debuggerHost) {
+    const ip = debuggerHost.split(':')[0]; // Extrae solo la IP
+    return `http://${ip}:3000`;
+  }
+  return 'http://192.168.1.103:3000'; // Fallback de seguridad
+};
+
+const API_URL = getApiUrl();
 
 export default function App() {
   const [usuario, setUsuario] = useState(null);
