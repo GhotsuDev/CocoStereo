@@ -80,7 +80,8 @@ export default function App() {
         usuario={usuario} 
         onLogout={() => { setUsuario(null); setIsPlayingGlobal(false); }} 
         onEditProfile={() => setVista('profile')}
-        setIsPlayingGlobal={setIsPlayingGlobal} // Pasamos la función para animar el fondo
+        setIsPlayingGlobal={setIsPlayingGlobal}
+        onGoToPlaylists={() => setVista('playlists')} // Pasamos la función para animar el fondo
       />
     );
   };

@@ -1,7 +1,7 @@
 const express = require('express');
 const sqlite3 = require('sqlite3').verbose();
 const cors = require('cors');
-const multer = require('multer'); // <--- ESTA ES LA LÍNEA QUE TE FALTA
+const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 
@@ -48,15 +48,49 @@ const db = new sqlite3.Database('./biblioteca.db', (err) => {
         // Sistema de Playlists
         db.run(`CREATE TABLE IF NOT EXISTS playlists (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            usuario_id INTEGER, nombre TEXT, descripcion TEXT,
+            usuario_id INTEGER, 
+            nombre TEXT, 
+            descripcion TEXT, 
+            foto TEXT,
             FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
         )`);
 
         db.run(`CREATE TABLE IF NOT EXISTS playlist_canciones (
-            playlist_id INTEGER, cancion_id INTEGER,
-            FOREIGN KEY (playlist_id) REFERENCES playlists(id),
-            FOREIGN KEY (cancion_id) REFERENCES canciones(id)
+        playlist_id INTEGER,
+        cancion_id INTEGER,
+        FOREIGN KEY (playlist_id) REFERENCES playlists(id),
+        FOREIGN KEY (cancion_id) REFERENCES canciones(id),
+        PRIMARY KEY (playlist_id, cancion_id)
         )`);
+        
+        // 1. EDITAR DATOS DE UNA PLAYLIST (Nombre, Descripción, Foto)
+app.put('/playlists/:id', (req, res) => {
+    const { nombre, descripcion, foto } = req.body;
+    const playlistId = req.params.id;
+    
+    db.run('UPDATE playlists SET nombre = ?, descripcion = ?, foto = ? WHERE id = ?', 
+        [nombre, descripcion, foto, playlistId], function(err) {
+            if (err) return res.status(500).json({ error: err.message });
+            res.json({ success: true });
+        }
+    );
+});
+
+// 2. ELIMINACIÓN SEGURA DE PLAYLIST (Sin tocar las canciones)
+app.delete('/playlists/:id', (req, res) => {
+    const playlistId = req.params.id;
+    
+    // Primero eliminamos los vínculos en la tabla intermedia para mantener la integridad
+    db.run('DELETE FROM playlist_canciones WHERE playlist_id = ?', [playlistId], function(err) {
+        if (err) return res.status(500).json({ error: err.message });
+        
+        // Luego eliminamos la playlist de la tabla principal
+        db.run('DELETE FROM playlists WHERE id = ?', [playlistId], function(err) {
+            if (err) return res.status(500).json({ error: err.message });
+            res.json({ success: true });
+        });
+    });
+});
         
         db.run(`CREATE TABLE IF NOT EXISTS canciones (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -71,6 +105,34 @@ const db = new sqlite3.Database('./biblioteca.db', (err) => {
             FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
         )`);
     }
+});
+
+// AÑADIR CANCIONES A PLAYLIST EXISTENTE (CON ESCUDO ANTIDUPLICADOS)
+app.post('/playlists/:playlist_id/canciones-batch', (req, res) => {
+    const { canciones_ids } = req.body;
+    if (!canciones_ids || canciones_ids.length === 0) return res.status(400).json({ error: 'No IDs' });
+    
+    const playlistId = req.params.playlist_id;
+    
+    // 1. Verificamos si alguna de estas canciones ya existe en la playlist
+    const placeholders = canciones_ids.map(() => '?').join(',');
+    db.all(`SELECT cancion_id FROM playlist_canciones WHERE playlist_id = ? AND cancion_id IN (${placeholders})`, 
+      [playlistId, ...canciones_ids], 
+      (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        
+        // Si encuentra coincidencias, bloqueamos la acción para evitar el duplicado
+        if (rows.length > 0) {
+            return res.status(409).json({ error: '¡Ya está en esta Playlist!' });
+        }
+
+        // 2. Si es seguro, insertamos
+        const stmt = db.prepare('INSERT INTO playlist_canciones (playlist_id, cancion_id) VALUES (?, ?)');
+        canciones_ids.forEach(id => stmt.run([playlistId, id]));
+        stmt.finalize();
+        
+        res.json({ success: true });
+    });
 });
 
 app.post('/login', (req, res) => {
@@ -89,6 +151,20 @@ app.post('/login', (req, res) => {
             res.status(401).json({ error: 'Credenciales inválidas' });
         }
     });
+});
+
+
+app.post('/playlists/:playlist_id/canciones-batch', (req, res) => {
+    const { canciones_ids } = req.body;
+    if (!canciones_ids || canciones_ids.length === 0) return res.status(400).json({ error: 'No IDs' });
+    
+    const playlistId = req.params.playlist_id;
+    const stmt = db.prepare('INSERT INTO playlist_canciones (playlist_id, cancion_id) VALUES (?, ?)');
+    
+    canciones_ids.forEach(id => stmt.run([playlistId, id]));
+    stmt.finalize();
+    
+    res.json({ success: true });
 });
 
 // Endpoint para editar el perfil
@@ -137,8 +213,9 @@ app.post('/canciones/bulk-delete', (req, res) => {
 
 // NUEVO: Crear Playlist
 app.post('/playlists', (req, res) => {
-    const { usuario_id, nombre, descripcion, canciones_ids } = req.body;
-    db.run('INSERT INTO playlists (usuario_id, nombre, descripcion) VALUES (?, ?, ?)', [usuario_id, nombre, descripcion], function(err) {
+    const { usuario_id, nombre, descripcion, foto, canciones_ids } = req.body;
+    db.run('INSERT INTO playlists (usuario_id, nombre, descripcion, foto) VALUES (?, ?, ?, ?)', 
+      [usuario_id, nombre, descripcion, foto], function(err) {
         if (err) return res.status(500).json({ error: err.message });
         const playlistId = this.lastID;
         

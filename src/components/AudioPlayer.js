@@ -1,16 +1,31 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native'; // <-- Añadí Platform
 import { Ionicons } from '@expo/vector-icons';
 import Slider from '@react-native-community/slider';
 import { Audio } from 'expo-av';
+import Constants from 'expo-constants'; // <-- Añadí Constants para la IP automática
 import { COLORS } from '../styles/colors';
+
+// --- MAGIA: OBTENCIÓN AUTOMÁTICA DE IP ---
+const getApiUrl = () => {
+  if (Platform.OS === 'web') return 'http://localhost:3000';
+  const debuggerHost = Constants.expoConfig?.hostUri;
+  if (debuggerHost) {
+    const ip = debuggerHost.split(':')[0];
+    return `http://${ip}:3000`;
+  }
+  return 'http://172.30.66.91:3000'; // Fallback
+};
+
+const API_URL = getApiUrl();
+// -----------------------------------------
 
 export default function AudioPlayer({ cancionActual, onNext, onPrev, setIsPlayingGlobal, onClose }) {
   const [sound, setSound] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [duration, setDuration] = useState(0);
   const [position, setPosition] = useState(0);
-  const [errorCarga, setErrorCarga] = useState(false); // Nuevo estado para errores
+  const [errorCarga, setErrorCarga] = useState(false); 
 
   const formatTime = (millis) => {
     if (!millis) return "00:00";
@@ -29,12 +44,13 @@ export default function AudioPlayer({ cancionActual, onNext, onPrev, setIsPlayin
 
     try {
       setErrorCarga(false);
-      // ⚠️ Asegúrate de que esta sea tu IP real
+      
+      // ⚠️ Ahora usa la IP dinámica automáticamente
       const uri = cancionActual.url_audio.startsWith('/uploads') 
-        ? `http://172.30.66.91:3000${cancionActual.url_audio}` 
+        ? `${API_URL}${cancionActual.url_audio}` 
         : cancionActual.url_audio;
         
-      console.log("Intentando reproducir URI:", uri); // <-- ESTO NOS DIRÁ EL PROBLEMA
+      console.log("Intentando reproducir URI:", uri); 
 
       const { sound: nuevoSonido } = await Audio.Sound.createAsync(
         { uri }, { shouldPlay: true }, onPlaybackStatusUpdate
@@ -99,7 +115,7 @@ export default function AudioPlayer({ cancionActual, onNext, onPrev, setIsPlayin
       {/* Mensaje de error visual si la URL falla */}
       {errorCarga && (
           <Text style={{ color: '#FF3B30', textAlign: 'center', fontSize: 12, marginBottom: 5 }}>
-             No se pudo cargar el audio. (Link no válido o archivo no encontrado)
+             No se pudo cargar el audio. (Sube un .mp3 o usa un link directo)
           </Text>
       )}
 
@@ -108,7 +124,7 @@ export default function AudioPlayer({ cancionActual, onNext, onPrev, setIsPlayin
         <Slider
           style={styles.slider}
           minimumValue={0}
-          maximumValue={duration > 0 ? duration : 1} // <-- ARREGLO DEL WARNING AQUÍ
+          maximumValue={duration > 0 ? duration : 1} 
           value={position}
           onSlidingComplete={handleSeek}
           minimumTrackTintColor={COLORS.accentSecondary}
@@ -144,4 +160,4 @@ const styles = StyleSheet.create({
   time: { color: COLORS.textSecondary, fontSize: 12 },
   controls: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 30, marginTop: 5 },
   playBtn: { width: 60, height: 60, borderRadius: 30, backgroundColor: COLORS.accentSecondary, justifyContent: 'center', alignItems: 'center' }
-});
+}); 
