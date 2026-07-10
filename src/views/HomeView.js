@@ -24,6 +24,12 @@ const getApiUrl = () => {
 
 const API_URL = getApiUrl();
 
+// Función helper para procesar imágenes locales o externas
+const obtenerImagenUrl = (url) => {
+  if (!url) return 'https://via.placeholder.com/150/110022/B026FF?text=User';
+  return url.startsWith('/') ? `${API_URL}${url}` : url;
+};
+
 export default function HomeView({ usuario, onLogout, onEditProfile, setIsPlayingGlobal, onGoToPlaylists }) {
   const [canciones, setCanciones] = useState([]);
   const [playlists, setPlaylists] = useState([]);
@@ -225,13 +231,27 @@ export default function HomeView({ usuario, onLogout, onEditProfile, setIsPlayin
   const renderHeader = () => (
     <View style={{ paddingBottom: 20 }}>
       <View style={styles.header}>
-        <TouchableOpacity style={styles.userInfo} onPress={onEditProfile}>
-          <Image source={{ uri: usuario.foto }} style={styles.avatar} />
+        {/* BOTÓN DE PERFIL BLINDADO */}
+        <TouchableOpacity 
+          style={styles.userInfo} 
+          onPress={() => {
+            if (typeof onEditProfile === 'function') {
+              onEditProfile();
+            } else {
+              Alert.alert(
+                "Cable Desconectado", 
+                "Asegúrate de que en App.js estés pasando 'onEditProfile={() => setVista('profile')}'"
+              );
+            }
+          }}
+        >
+          <Image source={{ uri: obtenerImagenUrl(usuario.foto) }} style={styles.avatar} />
           <View>
             <Text style={styles.appName}><Ionicons name="headset" size={16} color={COLORS.accentSecondary}/> CocoStereo</Text>
             <Text style={styles.userName}>{usuario.nombre}</Text>
           </View>
         </TouchableOpacity>
+
         <View style={{ flexDirection: 'row', gap: 15 }}>
           <TouchableOpacity onPress={onGoToPlaylists}>
             <Ionicons name="albums" size={28} color={COLORS.accent} />
@@ -289,6 +309,7 @@ export default function HomeView({ usuario, onLogout, onEditProfile, setIsPlayin
         keyExtractor={item => item.id.toString()}
         ListHeaderComponent={renderHeader}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled" 
         contentContainerStyle={{ paddingBottom: 130 }} 
         renderItem={({item, index}) => (
           <View style={[styles.item, indiceActual === index && { borderColor: COLORS.accentSecondary, borderWidth: 2 }]}>

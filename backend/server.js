@@ -167,14 +167,19 @@ app.post('/playlists/:playlist_id/canciones-batch', (req, res) => {
     res.json({ success: true });
 });
 
-// Endpoint para editar el perfil
+// ACTUALIZAR DATOS DEL PERFIL DE USUARIO
 app.put('/usuarios/:id', (req, res) => {
-    const { nombre, foto, descripcion } = req.body;
-    db.run('UPDATE usuarios SET nombre = ?, foto = ?, descripcion = ? WHERE id = ?', 
-        [nombre, foto, descripcion, req.params.id], function(err) {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json({ success: true });
-    });
+    const { nombre, descripcion, foto } = req.body;
+    const usuarioId = req.params.id;
+
+    db.run(
+        'UPDATE usuarios SET nombre = ?, descripcion = ?, foto = ? WHERE id = ?',
+        [nombre, descripcion, foto, usuarioId],
+        function(err) {
+            if (err) return res.status(500).json({ error: err.message });
+            res.json({ success: true, message: 'Perfil actualizado correctamente' });
+        }
+    );
 });
 
 // Endpoints de canciones

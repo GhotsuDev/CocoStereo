@@ -68,7 +68,14 @@ export default function App() {
     }
 
     if (vista === 'profile') {
-      return <ProfileView usuario={usuario} onVolver={() => setVista('home')} onActualizar={setUsuario} />;
+      <AuroraBackground isPlaying={isPlayingGlobal}>
+        <ProfileView 
+          usuario={usuario} 
+          onVolver={() => setVista('home')}
+          // 👇 ESTA ES LA LÍNEA CLAVE 👇
+          onUpdateUser={(usuarioActualizado) => setUsuario(usuarioActualizado)}
+        />
+      </AuroraBackground>
     }
 
     if (vista === 'playlists') {
@@ -76,13 +83,15 @@ export default function App() {
     }
 
     return (
-      <HomeView 
-        usuario={usuario} 
-        onLogout={() => { setUsuario(null); setIsPlayingGlobal(false); }} 
-        onEditProfile={() => setVista('profile')}
-        setIsPlayingGlobal={setIsPlayingGlobal}
-        onGoToPlaylists={() => setVista('playlists')} // Pasamos la función para animar el fondo
-      />
+      <AuroraBackground isPlaying={isPlayingGlobal}>
+        <HomeView 
+          usuario={usuario} 
+          onLogout={() => { setUsuario(null); setIsPlayingGlobal(false); setVista('home');}} 
+          onEditProfile={() => setVista('profile')}
+          setIsPlayingGlobal={setIsPlayingGlobal}
+          onGoToPlaylists={() => setVista('playlists')} // Pasamos la función para animar el fondo
+        />
+      </AuroraBackground>
     );
   };
 
