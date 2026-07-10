@@ -104,8 +104,8 @@ export default function AuroraBackground({ children, isPlaying }) {
 
   // Generación matemática de 30 ondas dispersas distribuidas aleatoriamente por la pantalla
   const ripples = useMemo(() => {
-    const colors = ['#B026FF', '#00F3FF', '#FF0055', '#4A148C', '#1E90FF', '#00FF9D'];
-    return Array.from({ length: 30 }).map((_, i) => ({
+    const colors = ['#B026FF', '#00F3FF', '#ffe600', '#4A148C', '#1E90FF', '#00FF9D'];
+    return Array.from({ length: 100 }).map((_, i) => ({
       id: i,
       x: Math.random() * width,
       y: Math.random() * height,
