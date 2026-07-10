@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, FlatList, Image, StyleSheet, Alert, Modal, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, FlatList, Image, StyleSheet, Alert, Modal, Platform, KeyboardAvoidingView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Checkbox from 'expo-checkbox';
 import * as Print from 'expo-print';
@@ -26,7 +26,7 @@ const API_URL = getApiUrl();
 
 export default function HomeView({ usuario, onLogout, onEditProfile, setIsPlayingGlobal, onGoToPlaylists }) {
   const [canciones, setCanciones] = useState([]);
-  const [playlists, setPlaylists] = useState([]); // Recuperamos el estado de las playlists
+  const [playlists, setPlaylists] = useState([]);
   const [seleccionadas, setSeleccionadas] = useState([]);
   const [indiceActual, setIndiceActual] = useState(null);
   
@@ -37,7 +37,7 @@ export default function HomeView({ usuario, onLogout, onEditProfile, setIsPlayin
   const [urlAudio, setUrlAudio] = useState('');
   const [calificacion, setCalificacion] = useState(0);
 
-  const [modalSeleccionarVisible, setModalSeleccionarVisible] = useState(false); // Modal intermedio
+  const [modalSeleccionarVisible, setModalSeleccionarVisible] = useState(false);
   const [modalPlaylistVisible, setModalPlaylistVisible] = useState(false);
   const [nombrePlaylist, setNombrePlaylist] = useState('');
   const [descPlaylist, setDescPlaylist] = useState('');
@@ -130,7 +130,6 @@ export default function HomeView({ usuario, onLogout, onEditProfile, setIsPlayin
     } catch (error) { Alert.alert('Error', error.message); }
   };
 
-  // --- NUEVA LÓGICA: ASIGNAR A EXISTENTE ---
   const agregarAPlaylistExistente = async (playlistId) => {
     try {
       const res = await fetch(`${API_URL}/playlists/${playlistId}/canciones-batch`, {
@@ -139,19 +138,22 @@ export default function HomeView({ usuario, onLogout, onEditProfile, setIsPlayin
         body: JSON.stringify({ canciones_ids: seleccionadas })
       });
       
-      // Capturamos el error 409 lanzado por el backend para evitar duplicados
       if (res.status === 409) {
         const errorData = await res.json();
-        return Alert.alert('Aviso', errorData.error);
+        if (Platform.OS === 'web') alert(`Aviso: ${errorData.error}`);
+        else Alert.alert('Aviso', errorData.error);
+        return;
       }
-      
       if (!res.ok) throw new Error('Error al añadir');
       
-      Alert.alert('Éxito', 'Canciones agregadas a la playlist');
+      if (Platform.OS === 'web') alert('Canciones agregadas a la playlist');
+      else Alert.alert('Éxito', 'Canciones agregadas a la playlist');
+      
       setModalSeleccionarVisible(false);
       setSeleccionadas([]);
     } catch (e) { 
-      Alert.alert('Error', e.message); 
+      if (Platform.OS === 'web') alert(`Error: ${e.message}`);
+      else Alert.alert('Error', e.message); 
     }
   };
 
@@ -172,7 +174,7 @@ export default function HomeView({ usuario, onLogout, onEditProfile, setIsPlayin
       Alert.alert('Éxito', 'Playlist creada con estilo');
       setModalPlaylistVisible(false);
       setNombrePlaylist(''); setDescPlaylist(''); setFotoPlaylist(''); setSeleccionadas([]);
-      cargarDatos(); // Refrescamos todo para que la nueva playlist aparezca en el menú luego
+      cargarDatos();
     } catch (e) { 
       Alert.alert('Error al crear', e.message); 
       console.error(e);
@@ -219,8 +221,9 @@ export default function HomeView({ usuario, onLogout, onEditProfile, setIsPlayin
   const nextSong = () => { if (canciones.length > 0) setIndiceActual((indiceActual + 1) % canciones.length); };
   const prevSong = () => { if (canciones.length > 0) setIndiceActual((indiceActual - 1 + canciones.length) % canciones.length); };
 
-  return (
-    <View style={styles.container}>
+  // --- CABECERA DE LA LISTA (Para scroll fluido) ---
+  const renderHeader = () => (
+    <View style={{ paddingBottom: 20 }}>
       <View style={styles.header}>
         <TouchableOpacity style={styles.userInfo} onPress={onEditProfile}>
           <Image source={{ uri: usuario.foto }} style={styles.avatar} />
@@ -243,19 +246,13 @@ export default function HomeView({ usuario, onLogout, onEditProfile, setIsPlayin
         <View style={styles.actionBar}>
           <Text style={styles.actionText}>{seleccionadas.length} seleccionadas</Text>
           <View style={{ flexDirection: 'row', gap: 15, alignItems: 'center' }}>
-            
-            {/* EL ÚNICO BOTÓN: Abre el modal selector */}
             <TouchableOpacity style={styles.btnCrearPlaylist} onPress={() => setModalSeleccionarVisible(true)}>
-              <View style={styles.circlePlus}>
-                <Ionicons name="add" size={18} color={COLORS.accent} />
-              </View>
+              <View style={styles.circlePlus}><Ionicons name="add" size={18} color={COLORS.accent} /></View>
               <Text style={styles.btnCrearPlaylistText}>Playlist</Text>
             </TouchableOpacity>
-            
             <TouchableOpacity style={[styles.actionBtn, { backgroundColor: COLORS.accentSecondary }]} onPress={generarCartaPlaylist}>
               <Ionicons name="share-social" size={20} color="#000" />
             </TouchableOpacity>
-            
             <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#FF3B30' }]} onPress={borrarSeleccion}>
               <Ionicons name="trash" size={20} color="#FFF" />
             </TouchableOpacity>
@@ -279,14 +276,43 @@ export default function HomeView({ usuario, onLogout, onEditProfile, setIsPlayin
             </TouchableOpacity>
         </View>
       )}
+    </View>
+  );
 
-      {/* 1. MODAL SELECTOR (El menú principal al dar + Playlist) */}
+  return (
+    <KeyboardAvoidingView 
+      style={styles.container} 
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
+      <FlatList 
+        data={canciones}
+        keyExtractor={item => item.id.toString()}
+        ListHeaderComponent={renderHeader}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 130 }} 
+        renderItem={({item, index}) => (
+          <View style={[styles.item, indiceActual === index && { borderColor: COLORS.accentSecondary, borderWidth: 2 }]}>
+            <Checkbox value={seleccionadas.includes(item.id)} onValueChange={() => toggleSeleccion(item.id)} color={seleccionadas.includes(item.id) ? COLORS.accent : undefined} style={{ marginRight: 15 }} />
+            
+            <TouchableOpacity style={{ flex: 1 }} onPress={() => playSong(index)}>
+              <Text style={{color: indiceActual === index ? COLORS.accentSecondary : '#FFF', fontSize: 18, fontWeight: 'bold'}}>{item.titulo}</Text>
+              <Text style={{color: COLORS.textSecondary, marginBottom: 4}}>{item.artista}</Text>
+              <StarRating calificacion={item.calificacion} readOnly={true} />
+            </TouchableOpacity>
+            
+            <TouchableOpacity onPress={() => { setTitulo(item.titulo); setArtista(item.artista); setGenero(item.genero || ''); setUrlAudio(item.url_audio || ''); setCalificacion(item.calificacion || 0); setModoEdicion(item.id); }} style={{ padding: 10 }}>
+              <Ionicons name="pencil" size={24} color={COLORS.textSecondary} />
+            </TouchableOpacity>
+          </View>
+        )}
+      />
+
+      {/* MODALES Y REPRODUCTOR FUERA DE LA LISTA */}
       <Modal visible={modalSeleccionarVisible} transparent={true} animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>AÑADIR A PLAYLIST</Text>
             
-            {/* Botón Destacado: Crear Nueva */}
             <TouchableOpacity 
               style={[styles.playlistRow, { borderColor: COLORS.accent, borderStyle: 'dashed', backgroundColor: 'transparent' }]} 
               onPress={() => { setModalSeleccionarVisible(false); setModalPlaylistVisible(true); }}
@@ -313,7 +339,6 @@ export default function HomeView({ usuario, onLogout, onEditProfile, setIsPlayin
         </View>
       </Modal>
 
-      {/* 2. MODAL PARA CREAR NUEVA PLAYLIST */}
       <Modal visible={modalPlaylistVisible} transparent={true} animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
@@ -347,31 +372,10 @@ export default function HomeView({ usuario, onLogout, onEditProfile, setIsPlayin
         </View>
       </Modal>
 
-      <FlatList 
-        data={canciones}
-        keyExtractor={item => item.id.toString()}
-        contentContainerStyle={{ paddingBottom: 130 }} 
-        renderItem={({item, index}) => (
-          <View style={[styles.item, indiceActual === index && { borderColor: COLORS.accentSecondary, borderWidth: 2 }]}>
-            <Checkbox value={seleccionadas.includes(item.id)} onValueChange={() => toggleSeleccion(item.id)} color={seleccionadas.includes(item.id) ? COLORS.accent : undefined} style={{ marginRight: 15 }} />
-            
-            <TouchableOpacity style={{ flex: 1 }} onPress={() => playSong(index)}>
-              <Text style={{color: indiceActual === index ? COLORS.accentSecondary : '#FFF', fontSize: 18, fontWeight: 'bold'}}>{item.titulo}</Text>
-              <Text style={{color: COLORS.textSecondary, marginBottom: 4}}>{item.artista}</Text>
-              <StarRating calificacion={item.calificacion} readOnly={true} />
-            </TouchableOpacity>
-            
-            <TouchableOpacity onPress={() => { setTitulo(item.titulo); setArtista(item.artista); setGenero(item.genero || ''); setUrlAudio(item.url_audio || ''); setCalificacion(item.calificacion || 0); setModoEdicion(item.id); }} style={{ padding: 10 }}>
-              <Ionicons name="pencil" size={24} color={COLORS.textSecondary} />
-            </TouchableOpacity>
-          </View>
-        )}
-      />
-
       {indiceActual !== null && (
         <AudioPlayer cancionActual={canciones[indiceActual]} onNext={nextSong} onPrev={prevSong} setIsPlayingGlobal={setIsPlayingGlobal} onClose={() => setIndiceActual(null)} />
       )}
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
