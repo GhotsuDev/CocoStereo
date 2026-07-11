@@ -2,7 +2,7 @@
 
 CocoStereo es un ecosistema musical offline de primer nivel. Diseñado con una arquitectura moderna en React Native y Node.js, la aplicación destaca por su estética **Dark Neumorphism** y **Glassmorphism**, combinada con un entorno gráfico que reacciona a la música mediante ecualizadores radiales animados.
 
-## ✨ Características Principales
+## Características Principales
 * **Reproductor Integrado:** Motor de audio real utilizando `expo-av` con barra de progreso y controles responsivos.
 * **Gestión de Playlists:** Creación, edición, eliminación y visualización de listas de reproducción personalizadas.
 * **Interfaz Skeumórfica Oscura:** Controles que simulan hardware físico, botones elevados y pantallas hundidas translúcidas.
@@ -12,7 +12,7 @@ CocoStereo es un ecosistema musical offline de primer nivel. Diseñado con una a
 
 ---
 
-## 🛠️ Tecnologías Utilizadas
+## Tecnologías Utilizadas
 
 **Frontend:**
 * [React Native](https://reactnative.dev/) & [Expo](https://expo.dev/)
@@ -27,7 +27,7 @@ CocoStereo es un ecosistema musical offline de primer nivel. Diseñado con una a
 
 ---
 
-## 🚀 Guía de Instalación y Ejecución
+## Guía de Instalación y Ejecución
 
 Sigue estos pasos para correr el proyecto en tu entorno local. 
 
@@ -41,3 +41,29 @@ Asegúrate de tener instalados:
 ```bash
 git clone [https://github.com/TU_USUARIO/CocoStereo.git](https://github.com/TU_USUARIO/CocoStereo.git)
 cd CocoStereo
+```
+
+### 3. Iniciar el Backend (Servidor y Base de Datos)
+**Navega a la carpeta del backend**
+```bash
+cd backend
+```
+**Instala las dependencias del servidor**
+```bash
+npm install
+```
+**Inicia el servidor**
+```bash
+node server.js
+```
+
+## 4. Iniciar el Frontend (Aplicación React Native)
+Abre una nueva terminal (sin cerrar la del backend) y navega a la raíz del proyecto.
+**Instala dependencias**
+```bash
+npm install
+```
+**Inicia la app**
+```bash
+npx expo start
+```
