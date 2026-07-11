@@ -312,7 +312,7 @@ const confirmarEliminarCancion = (id) => {
       </Modal>
 
       {indiceActual !== null && (
-        <AudioPlayer cancionActual={canciones[indiceActual]} onNext={nextSong} onPrev={prevSong} setIsPlayingGlobal={setIsPlayingGlobal} onClose={() => setIndiceActual(null)} />
+        <AudioPlayer cancionActual={canciones[indiceActual]} onNext={nextSong} onPrev={prevSong} setIsPlayingGlobal={setIsPlayingGlobal} onClose={() => setIndiceActual(null)} usuario={usuario}/>
       )}
     </KeyboardAvoidingView>
   );

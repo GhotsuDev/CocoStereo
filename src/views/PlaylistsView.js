@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, FlatList, StyleSheet, Platform, ActivityIndicator, Alert, Modal, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import Checkbox from 'expo-checkbox'; // 🟢 NECESITAMOS CHECKBOX
 import { COLORS } from '../styles/colors';
 import Constants from 'expo-constants';
 import StarRating from '../components/StarRating';
@@ -24,6 +25,11 @@ export default function PlaylistsView({ usuario, onVolver, setIsPlayingGlobal })
   const [modalEdicionVisible, setModalEdicionVisible] = useState(false);
   const [editNombre, setEditNombre] = useState('');
 
+  // 🟢 ESTADOS PARA AÑADIR CANCIONES A LA PLAYLIST ABIERTA 🟢
+  const [modalAgregarVisible, setModalAgregarVisible] = useState(false);
+  const [cancionesGlobales, setCancionesGlobales] = useState([]);
+  const [seleccionadasParaAgregar, setSeleccionadasParaAgregar] = useState([]);
+
   const cargarPlaylists = async () => {
     try {
       const res = await fetch(`${API_URL}/playlists/${usuario.id}`);
@@ -42,6 +48,45 @@ export default function PlaylistsView({ usuario, onVolver, setIsPlayingGlobal })
       if (res.ok) setCancionesInternas(await res.json());
     } catch (error) { console.error(error); }
     setCargando(false);
+  };
+
+  // 🟢 LÓGICA PARA AÑADIR DESDE LA LIBRERÍA GLOBAL 🟢
+  const abrirModalAgregar = async () => {
+    try {
+      const res = await fetch(`${API_URL}/canciones/${usuario.id}`);
+      if (res.ok) {
+        setCancionesGlobales(await res.json());
+        setSeleccionadasParaAgregar([]);
+        setModalAgregarVisible(true);
+      }
+    } catch (error) { console.error(error); }
+  };
+
+  const toggleSeleccionParaAgregar = (id) => {
+    if (seleccionadasParaAgregar.includes(id)) {
+      setSeleccionadasParaAgregar(seleccionadasParaAgregar.filter(item => item !== id));
+    } else {
+      setSeleccionadasParaAgregar([...seleccionadasParaAgregar, id]);
+    }
+  };
+
+  const guardarNuevasCancionesEnPlaylist = async () => {
+    if (seleccionadasParaAgregar.length === 0) return Alert.alert('Aviso', 'Selecciona al menos una canción');
+    try {
+      const res = await fetch(`${API_URL}/playlists/${playlistSeleccionada.id}/canciones-batch`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ canciones_ids: seleccionadasParaAgregar })
+      });
+      if (res.ok) {
+        Alert.alert('Éxito', 'Canciones agregadas a la playlist');
+        setModalAgregarVisible(false);
+        abrirPlaylist(playlistSeleccionada); // Recarga la vista interna
+      } else if (res.status === 409) {
+        Alert.alert('Aviso', 'Algunas canciones ya estaban en la playlist. Se agregaron las nuevas.');
+        setModalAgregarVisible(false);
+        abrirPlaylist(playlistSeleccionada);
+      }
+    } catch (error) { console.error(error); }
   };
 
   const playSong = (index) => setIndiceActual(index);
@@ -72,8 +117,7 @@ export default function PlaylistsView({ usuario, onVolver, setIsPlayingGlobal })
     if (!editNombre) return;
     try {
       await fetch(`${API_URL}/playlists/${playlistSeleccionada.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ nombre: editNombre, descripcion: playlistSeleccionada.descripcion, foto: playlistSeleccionada.foto })
       });
       setModalEdicionVisible(false);
@@ -98,7 +142,7 @@ export default function PlaylistsView({ usuario, onVolver, setIsPlayingGlobal })
       const res = await fetch(`${API_URL}/playlists/${playlistSeleccionada.id}/canciones/${cancionId}`, { method: 'DELETE' });
       if (res.ok) {
         if (cancionesInternas[indiceActual]?.id === cancionId) setIndiceActual(null);
-        abrirPlaylist(playlistSeleccionada); // Recarga la lista interna
+        abrirPlaylist(playlistSeleccionada);
       }
     } catch (e) { console.error("Error al quitar canción", e); }
   };
@@ -108,12 +152,8 @@ export default function PlaylistsView({ usuario, onVolver, setIsPlayingGlobal })
       <View style={styles.header}>
         <TouchableOpacity 
           onPress={() => {
-            if (playlistSeleccionada) {
-              setPlaylistSeleccionada(null);
-              setIndiceActual(null);
-            } else {
-              onVolver();
-            }
+            if (playlistSeleccionada) { setPlaylistSeleccionada(null); setIndiceActual(null); } 
+            else { onVolver(); }
           }} 
           style={styles.btnVolver}
         >
@@ -126,6 +166,11 @@ export default function PlaylistsView({ usuario, onVolver, setIsPlayingGlobal })
 
         {playlistSeleccionada ? (
           <View style={{ flexDirection: 'row', gap: 10 }}>
+            {/* 🟢 NUEVO BOTÓN "+" EN LA CABECERA 🟢 */}
+            <TouchableOpacity style={styles.btnAccionHeader} onPress={abrirModalAgregar}>
+              <Ionicons name="add" size={20} color={COLORS.primaryLight} />
+            </TouchableOpacity>
+            
             <TouchableOpacity style={styles.btnAccionHeader} onPress={() => { setEditNombre(playlistSeleccionada.nombre); setModalEdicionVisible(true); }}>
               <Ionicons name="pencil" size={20} color={COLORS.accent} />
             </TouchableOpacity>
@@ -168,36 +213,74 @@ export default function PlaylistsView({ usuario, onVolver, setIsPlayingGlobal })
                   <Text style={{color: COLORS.textSecondary, marginBottom: 4, fontSize: 12}}>{item.artista}</Text>
                   <StarRating calificacion={item.calificacion} readOnly={true} />
                 </View>
-                <TouchableOpacity style={styles.btnPlay} onPress={() => playSong(index)}>
-                  <Ionicons name={indiceActual === index ? "pause" : "play"} size={18} color="#000" />
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => confirmarRemoverDePlaylist(item.id)}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 15 }}>
+                  <TouchableOpacity style={styles.btnPlay} onPress={() => playSong(index)}>
+                    <Ionicons name={indiceActual === index ? "pause" : "play"} size={18} color="#000" />
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => confirmarRemoverDePlaylist(item.id)}>
                     <Ionicons name="close-circle" size={24} color="#FF3B30" />
                   </TouchableOpacity>
+                </View>
               </View>
             )}
-            ListEmptyComponent={<Text style={{color: COLORS.textSecondary, textAlign: 'center', marginTop: 40}}>Esta playlist no tiene canciones aún.</Text>}
+            ListEmptyComponent={<Text style={{color: COLORS.textSecondary, textAlign: 'center', marginTop: 40}}>Esta playlist no tiene canciones aún. Usa el "+" arriba para añadir.</Text>}
           />
         )
       )}
 
+      {/* MODAL EDICIÓN */}
       <Modal visible={modalEdicionVisible} transparent={true} animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>EDITAR PLAYLIST</Text>
-            <TextInput 
-              style={styles.inputNeumorphic} 
-              placeholder="Nuevo nombre" 
-              value={editNombre} 
-              onChangeText={setEditNombre} 
-              placeholderTextColor={COLORS.textSecondary} 
-            />
+            <TextInput style={styles.inputNeumorphic} placeholder="Nuevo nombre" value={editNombre} onChangeText={setEditNombre} placeholderTextColor={COLORS.textSecondary} />
             <View style={{ flexDirection: 'row', gap: 10, marginTop: 15 }}>
               <TouchableOpacity style={[styles.btnAction, { flex: 1, backgroundColor: COLORS.surfaceInsetTransparent }]} onPress={() => setModalEdicionVisible(false)}>
                 <Text style={{color: COLORS.text, fontWeight: 'bold'}}>CANCELAR</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.btnAction, { flex: 1 }]} onPress={guardarEdicion}>
                 <Text style={styles.btnActionText}>GUARDAR</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* 🟢 MODAL PARA AÑADIR CANCIONES DESDE LA LIBRERÍA 🟢 */}
+      <Modal visible={modalAgregarVisible} transparent={true} animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { height: '80%' }]}>
+            <Text style={styles.modalTitle}>SELECCIONA CANCIONES</Text>
+            
+            <FlatList 
+              data={cancionesGlobales}
+              keyExtractor={item => item.id.toString()}
+              showsVerticalScrollIndicator={false}
+              renderItem={({item}) => (
+                <TouchableOpacity 
+                  style={[styles.itemCancionGlobal, seleccionadasParaAgregar.includes(item.id) && { borderColor: COLORS.accent }]}
+                  onPress={() => toggleSeleccionParaAgregar(item.id)}
+                >
+                  <Checkbox 
+                    value={seleccionadasParaAgregar.includes(item.id)} 
+                    onValueChange={() => toggleSeleccionParaAgregar(item.id)} 
+                    color={seleccionadasParaAgregar.includes(item.id) ? COLORS.accent : undefined} 
+                    style={{ marginRight: 15 }} 
+                  />
+                  <View style={{ flex: 1 }}>
+                    <Text style={{color: COLORS.text, fontSize: 16, fontWeight: 'bold'}}>{item.titulo}</Text>
+                    <Text style={{color: COLORS.textSecondary, fontSize: 12}}>{item.artista}</Text>
+                  </View>
+                </TouchableOpacity>
+              )}
+            />
+
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 15 }}>
+              <TouchableOpacity style={[styles.btnAction, { flex: 1, backgroundColor: COLORS.surfaceInsetTransparent }]} onPress={() => setModalAgregarVisible(false)}>
+                <Text style={{color: COLORS.text, fontWeight: 'bold'}}>CANCELAR</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.btnAction, { flex: 1 }]} onPress={guardarNuevasCancionesEnPlaylist}>
+                <Text style={styles.btnActionText}>AÑADIR ({seleccionadasParaAgregar.length})</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -211,6 +294,7 @@ export default function PlaylistsView({ usuario, onVolver, setIsPlayingGlobal })
           onPrev={prevSong} 
           setIsPlayingGlobal={setIsPlayingGlobal} 
           onClose={() => setIndiceActual(null)} 
+          usuario={usuario} // 🟢 AQUÍ PASAMOS EL USUARIO AL REPRODUCTOR TAMBIÉN 🟢
         />
       )}
     </View>
@@ -224,12 +308,14 @@ const styles = StyleSheet.create({
   btnAccionHeader: { padding: 8, backgroundColor: COLORS.surfaceInsetTransparent, borderRadius: 10, borderWidth: 1, borderColor: COLORS.borderShadow },
   tituloSecundario: { fontSize: 16, fontWeight: '900', color: COLORS.text, letterSpacing: 2, position: 'absolute', left: 0, right: 0, textAlign: 'center', zIndex: -1 },
   
-  // 🟢 Estilos Glassmorphism Aplicados 🟢
   cardNeumorphic: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.surfaceTransparent, padding: 15, borderRadius: 15, marginBottom: 15, borderWidth: 1, borderColor: COLORS.borderHighlight },
   placeholderImagen: { width: 50, height: 50, borderRadius: 10, marginRight: 15, backgroundColor: COLORS.surfaceInsetTransparent, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: COLORS.borderShadow },
   nombrePlaylist: { color: COLORS.text, fontSize: 16, fontWeight: 'bold' },
   descPlaylist: { color: COLORS.textSecondary, fontSize: 12, marginTop: 4 },
+  
   itemCancion: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.surfaceTransparent, padding: 15, borderRadius: 12, marginBottom: 12, borderWidth: 1, borderColor: COLORS.borderHighlight },
+  itemCancionGlobal: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.surfaceInsetTransparent, padding: 15, borderRadius: 10, marginBottom: 10, borderWidth: 1, borderColor: COLORS.borderShadow },
+  
   btnPlay: { backgroundColor: COLORS.accent, width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center', paddingLeft: 4, shadowColor: COLORS.accent, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.5, shadowRadius: 4 },
   
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'center', padding: 20 },
