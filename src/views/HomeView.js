@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, FlatList, Image, StyleSheet, Alert, Modal, Platform, KeyboardAvoidingView } from 'react-native';
+import { View, Text, TouchableOpacity, FlatList, Image, StyleSheet, Alert, Modal, Platform, KeyboardAvoidingView, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Checkbox from 'expo-checkbox';
 import * as Print from 'expo-print';
@@ -7,7 +7,6 @@ import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { COLORS } from '../styles/colors';
-import AnimatedInput from '../components/AnimatedInput';
 import StarRating from '../components/StarRating';
 import AudioPlayer from '../components/AudioPlayer';
 import Constants from 'expo-constants';
@@ -15,18 +14,12 @@ import Constants from 'expo-constants';
 const getApiUrl = () => {
   if (Platform.OS === 'web') return 'http://localhost:3000';
   const debuggerHost = Constants.expoConfig?.hostUri;
-  if (debuggerHost) {
-    const ip = debuggerHost.split(':')[0];
-    return `http://${ip}:3000`;
-  }
+  if (debuggerHost) return `http://${debuggerHost.split(':')[0]}:3000`;
   return 'http://172.30.66.91:3000'; 
 };
-
 const API_URL = getApiUrl();
-
-// Función helper para procesar imágenes locales o externas
 const obtenerImagenUrl = (url) => {
-  if (!url) return 'https://via.placeholder.com/150/110022/B026FF?text=User';
+  if (!url) return 'https://via.placeholder.com/150/1A2417/FF8C00?text=User';
   return url.startsWith('/') ? `${API_URL}${url}` : url;
 };
 
@@ -46,14 +39,11 @@ export default function HomeView({ usuario, onLogout, onEditProfile, setIsPlayin
   const [modalSeleccionarVisible, setModalSeleccionarVisible] = useState(false);
   const [modalPlaylistVisible, setModalPlaylistVisible] = useState(false);
   const [nombrePlaylist, setNombrePlaylist] = useState('');
-  const [descPlaylist, setDescPlaylist] = useState('');
-  const [fotoPlaylist, setFotoPlaylist] = useState('');
-
+  
   const cargarDatos = async () => {
     try {
       const resCanciones = await fetch(`${API_URL}/canciones/${usuario.id}`);
       if (resCanciones.ok) setCanciones(await resCanciones.json());
-      
       const resPlaylists = await fetch(`${API_URL}/playlists/${usuario.id}`);
       if (resPlaylists.ok) setPlaylists(await resPlaylists.json());
     } catch (e) { console.error(e); }
@@ -62,11 +52,8 @@ export default function HomeView({ usuario, onLogout, onEditProfile, setIsPlayin
   useEffect(() => { cargarDatos(); }, []);
 
   const toggleSeleccion = (id) => {
-    if (seleccionadas.includes(id)) {
-      setSeleccionadas(seleccionadas.filter(item => item !== id));
-    } else {
-      setSeleccionadas([...seleccionadas, id]);
-    }
+    if (seleccionadas.includes(id)) setSeleccionadas(seleccionadas.filter(item => item !== id));
+    else setSeleccionadas([...seleccionadas, id]);
   };
 
   const seleccionarArchivo = async () => {
@@ -75,8 +62,7 @@ export default function HomeView({ usuario, onLogout, onEditProfile, setIsPlayin
       if (!res.canceled && res.assets.length > 0) {
         const file = res.assets[0];
         const formData = new FormData();
-        Alert.alert('Subiendo...', 'Espera mientras procesamos el archivo...');
-
+        Alert.alert('Subiendo...', 'Espera...');
         if (Platform.OS === 'web') {
           const response = await fetch(file.uri);
           const blob = await response.blob();
@@ -84,44 +70,15 @@ export default function HomeView({ usuario, onLogout, onEditProfile, setIsPlayin
         } else {
           formData.append('archivo', { uri: file.uri, name: file.name, type: file.mimeType || 'audio/mpeg' });
         }
-
         const uploadRes = await fetch(`${API_URL}/upload`, { method: 'POST', body: formData });
         if (uploadRes.ok) {
           const data = await uploadRes.json();
           setUrlAudio(data.url); 
-          Alert.alert('Éxito', 'Archivo cargado correctamente.');
-        } else { Alert.alert('Error', 'El backend rechazó el archivo.'); }
+          Alert.alert('Éxito', 'Archivo cargado.');
+        } else { Alert.alert('Error', 'Rechazado.'); }
       }
-    } catch (error) { console.error(error); Alert.alert('Error', 'Hubo un problema con el archivo.'); }
+    } catch (error) { Alert.alert('Error', 'Problema con el archivo.'); }
   };
-
-  const seleccionarFotoPlaylist = async () => {
-    try {
-      let result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: true, aspect: [1, 1], quality: 0.8 });
-      if (!result.canceled) {
-        const file = result.assets[0];
-        const formData = new FormData();
-        Alert.alert('Subiendo...', 'Espera mientras procesamos la imagen...');
-
-        if (Platform.OS === 'web') {
-          const response = await fetch(file.uri);
-          const blob = await response.blob();
-          formData.append('archivo', blob, file.name || 'portada.jpg');
-        } else {
-          formData.append('archivo', { uri: file.uri, name: file.fileName || 'portada.jpg', type: file.mimeType || 'image/jpeg' });
-        }
-
-        const uploadRes = await fetch(`${API_URL}/upload`, { method: 'POST', body: formData });
-        if (uploadRes.ok) {
-          const data = await uploadRes.json();
-          setFotoPlaylist(data.url); 
-          Alert.alert('Éxito', 'Portada cargada correctamente.');
-        } else { Alert.alert('Error', 'El backend rechazó el archivo.'); }
-      }
-    } catch (error) { console.error(error); Alert.alert('Error', 'Hubo un problema al leer la imagen.'); }
-  };
-
-  const limpiarFormulario = () => { setTitulo(''); setArtista(''); setGenero(''); setUrlAudio(''); setCalificacion(0); setModoEdicion(null); };
 
   const procesarFormulario = async () => {
     if (!titulo || !artista) return Alert.alert('Error', 'Título y Artista son obligatorios.');
@@ -131,9 +88,33 @@ export default function HomeView({ usuario, onLogout, onEditProfile, setIsPlayin
             ? await fetch(`${API_URL}/canciones/${modoEdicion}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
             : await fetch(`${API_URL}/canciones`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
         if (!res.ok) throw new Error('Error en el servidor');
-        limpiarFormulario();
+        
+        // Limpiamos el formulario y recargamos la lista
+        setTitulo(''); setArtista(''); setGenero(''); setUrlAudio(''); setCalificacion(0); setModoEdicion(null);
         cargarDatos();
     } catch (error) { Alert.alert('Error', error.message); }
+  };
+
+
+const confirmarEliminarCancion = (id) => {
+    if (Platform.OS === 'web') {
+      if (window.confirm("¿Estás seguro de eliminar esta canción para siempre?")) eliminarCancionGlobal(id);
+    } else {
+      Alert.alert('Eliminar Canción', '¿Seguro que deseas eliminar esta canción de tu biblioteca? Se borrará también de tus playlists.', [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Eliminar', style: 'destructive', onPress: () => eliminarCancionGlobal(id) }
+      ]);
+    }
+  };
+
+  const eliminarCancionGlobal = async (id) => {
+    try {
+      const res = await fetch(`${API_URL}/canciones/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        if (canciones[indiceActual]?.id === id) setIndiceActual(null); // Apaga la música si borras lo que está sonando
+        cargarDatos();
+      }
+    } catch (error) { console.error(error); }
   };
 
   const agregarAPlaylistExistente = async (playlistId) => {
@@ -143,203 +124,156 @@ export default function HomeView({ usuario, onLogout, onEditProfile, setIsPlayin
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ canciones_ids: seleccionadas })
       });
-      
-      if (res.status === 409) {
-        const errorData = await res.json();
-        if (Platform.OS === 'web') alert(`Aviso: ${errorData.error}`);
-        else Alert.alert('Aviso', errorData.error);
-        return;
-      }
       if (!res.ok) throw new Error('Error al añadir');
-      
-      if (Platform.OS === 'web') alert('Canciones agregadas a la playlist');
-      else Alert.alert('Éxito', 'Canciones agregadas a la playlist');
-      
+      Alert.alert('Éxito', 'Canciones agregadas a la playlist');
       setModalSeleccionarVisible(false);
       setSeleccionadas([]);
-    } catch (e) { 
-      if (Platform.OS === 'web') alert(`Error: ${e.message}`);
-      else Alert.alert('Error', e.message); 
-    }
+    } catch (e) { Alert.alert('Error', e.message); }
   };
 
-  const guardarPlaylist = async () => {
-    if (!nombrePlaylist) return Alert.alert('Error', 'Dale un nombre a tu playlist');
+  const guardarPlaylistNueva = async () => {
+    if (!nombrePlaylist) return Alert.alert('Error', 'Dale un nombre');
     try {
       const res = await fetch(`${API_URL}/playlists`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ usuario_id: usuario.id, nombre: nombrePlaylist, descripcion: descPlaylist, foto: fotoPlaylist, canciones_ids: seleccionadas })
+        body: JSON.stringify({ usuario_id: usuario.id, nombre: nombrePlaylist, canciones_ids: seleccionadas })
       });
-      
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error || 'Error interno del servidor al insertar la playlist');
+      if (res.ok) {
+        Alert.alert('Éxito', 'Playlist creada');
+        setModalPlaylistVisible(false);
+        setNombrePlaylist('');
+        setSeleccionadas([]);
+        cargarDatos();
       }
-
-      Alert.alert('Éxito', 'Playlist creada con estilo');
-      setModalPlaylistVisible(false);
-      setNombrePlaylist(''); setDescPlaylist(''); setFotoPlaylist(''); setSeleccionadas([]);
-      cargarDatos();
-    } catch (e) { 
-      Alert.alert('Error al crear', e.message); 
-      console.error(e);
-    }
-  };
-
-  const borrarSeleccion = async () => {
-    try {
-      await fetch(`${API_URL}/canciones/bulk-delete`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids: seleccionadas }) });
-      setSeleccionadas([]);
-      cargarDatos();
-    } catch (error) { Alert.alert('Error', error.message); }
-  };
-
-  const generarCartaPlaylist = async () => {
-    const tracks = seleccionadas.length > 0 ? canciones.filter(c => seleccionadas.includes(c.id)) : canciones;
-    if (tracks.length === 0) return Alert.alert('Lista vacía', 'No hay canciones.');
-    
-    const html = `
-      <div style="background-color: #6C5B7B; padding: 50px; display: flex; font-family: 'Segoe UI', sans-serif; color: #000; width: 1000px; height: 600px; box-sizing: border-box;">
-        <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; border-right: 3px solid rgba(0,0,0,0.2); padding-right: 40px;">
-          <div style="width: 250px; height: 250px; border-radius: 50%; border: 4px solid #9B59B6; background-color: #FFF; overflow: hidden; display: flex; justify-content: center; align-items: center;">
-            <img src="${usuario.foto}" style="width: 100%; height: 100%; object-fit: cover;" />
-          </div>
-          <h1 style="font-size: 45px; margin: 30px 0 10px 0; font-weight: 900; text-align: center;">${usuario.nombre}</h1>
-          <h2 style="font-size: 25px; margin: 0; font-weight: 600; text-align: center;">${usuario.descripcion || 'Mi Colección Musical'}</h2>
-        </div>
-        <div style="flex: 2; padding-left: 60px; display: flex; flex-direction: column; justify-content: center;">
-          <h1 style="font-size: 55px; margin: 0 0 10px 0; font-weight: 900;">Mi Selección</h1>
-          <div style="font-size: 28px; line-height: 1.8;">
-            ${tracks.map(c => `<div style="display: flex; align-items: center; margin-bottom: 15px;"><div style="width: 25px; height: 25px; border: 3px solid #000; margin-right: 15px;"></div><div style="border-bottom: 2px solid #000; flex: 1; padding-bottom: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"><strong>${c.titulo}</strong> - ${c.artista}</div></div>`).join('')}
-          </div>
-        </div>
-      </div>
-    `;
-    try {
-      const { uri } = await Print.printToFileAsync({ html, width: 1000, height: 600 });
-      await Sharing.shareAsync(uri);
-      setSeleccionadas([]); 
-    } catch (error) { Alert.alert('Error', 'No se pudo generar la carta'); }
+    } catch (e) { console.error(e); }
   };
 
   const playSong = (index) => setIndiceActual(index);
   const nextSong = () => { if (canciones.length > 0) setIndiceActual((indiceActual + 1) % canciones.length); };
   const prevSong = () => { if (canciones.length > 0) setIndiceActual((indiceActual - 1 + canciones.length) % canciones.length); };
 
-  // --- CABECERA DE LA LISTA (Para scroll fluido) ---
-  const renderHeader = () => (
+  const renderFormulario = () => (
     <View style={{ paddingBottom: 20 }}>
-      <View style={styles.header}>
-        {/* BOTÓN DE PERFIL BLINDADO */}
-        <TouchableOpacity 
-          style={styles.userInfo} 
-          onPress={() => {
-            if (typeof onEditProfile === 'function') {
-              onEditProfile();
-            } else {
-              Alert.alert(
-                "Cable Desconectado", 
-                "Asegúrate de que en App.js estés pasando 'onEditProfile={() => setVista('profile')}'"
-              );
-            }
-          }}
-        >
-          <Image source={{ uri: obtenerImagenUrl(usuario.foto) }} style={styles.avatar} />
-          <View>
-            <Text style={styles.appName}><Ionicons name="headset" size={16} color={COLORS.accentSecondary}/> CocoStereo</Text>
-            <Text style={styles.userName}>{usuario.nombre}</Text>
-          </View>
-        </TouchableOpacity>
-
-        <View style={{ flexDirection: 'row', gap: 15 }}>
-          <TouchableOpacity onPress={onGoToPlaylists}>
-            <Ionicons name="albums" size={28} color={COLORS.accent} />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={onLogout}>
-            <Ionicons name="log-out-outline" size={28} color={COLORS.textSecondary} />
-          </TouchableOpacity>
-        </View>
-      </View>
-
       {seleccionadas.length > 0 ? (
         <View style={styles.actionBar}>
           <Text style={styles.actionText}>{seleccionadas.length} seleccionadas</Text>
-          <View style={{ flexDirection: 'row', gap: 15, alignItems: 'center' }}>
-            <TouchableOpacity style={styles.btnCrearPlaylist} onPress={() => setModalSeleccionarVisible(true)}>
-              <View style={styles.circlePlus}><Ionicons name="add" size={18} color={COLORS.accent} /></View>
-              <Text style={styles.btnCrearPlaylistText}>Playlist</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.actionBtn, { backgroundColor: COLORS.accentSecondary }]} onPress={generarCartaPlaylist}>
-              <Ionicons name="share-social" size={20} color="#000" />
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#FF3B30' }]} onPress={borrarSeleccion}>
-              <Ionicons name="trash" size={20} color="#FFF" />
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity style={styles.btnAccionMasiva} onPress={() => setModalSeleccionarVisible(true)}>
+            <Ionicons name="folder-open" size={18} color="#000" />
+            <Text style={{color: '#000', fontWeight: 'bold', marginLeft: 8}}>Añadir a Playlist</Text>
+          </TouchableOpacity>
         </View>
       ) : (
         <View style={styles.form}>
-            <AnimatedInput placeholder="Título" value={titulo} onChangeText={setTitulo} />
-            <AnimatedInput placeholder="Artista" value={artista} onChangeText={setArtista} />
-            <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center', marginBottom: 10 }}>
-              <View style={{ flex: 1 }}>
-                <AnimatedInput placeholder="URL externa o archivo local" value={urlAudio} onChangeText={setUrlAudio} style={{ marginBottom: 0 }} />
-              </View>
-              <TouchableOpacity style={styles.btnUpload} onPress={seleccionarArchivo}>
-                <Ionicons name="cloud-upload" size={24} color="#FFF" />
-              </TouchableOpacity>
-            </View>
-            <StarRating calificacion={calificacion} setCalificacion={setCalificacion} />
-            <TouchableOpacity style={[styles.btnAñadir, { backgroundColor: modoEdicion ? COLORS.accentSecondary : COLORS.accent }]} onPress={procesarFormulario}>
-              <Text style={[styles.btnText, { color: modoEdicion ? '#000' : '#FFF' }]}>{modoEdicion ? 'GUARDAR CAMBIOS' : 'AÑADIR CANCIÓN'}</Text>
-            </TouchableOpacity>
-        </View>
+  <TextInput 
+    style={styles.inputNeumorphic} 
+    placeholder="Título" 
+    value={titulo} 
+    onChangeText={setTitulo} 
+    placeholderTextColor={COLORS.textSecondary}
+  />
+  <TextInput 
+    style={styles.inputNeumorphic} 
+    placeholder="Artista" 
+    value={artista} 
+    onChangeText={setArtista} 
+    placeholderTextColor={COLORS.textSecondary}
+  />
+
+  {/* Contenedor en fila para la URL y el botón */}
+  <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 15 }}>
+    <TextInput 
+      style={[styles.inputNeumorphic, { flex: 1, marginBottom: 0, marginRight: 10 }]} 
+      placeholder="URL de audio" 
+      value={urlAudio} 
+      onChangeText={setUrlAudio} 
+      placeholderTextColor={COLORS.textSecondary}
+    />
+    <TouchableOpacity 
+      style={[styles.btnUpload, { height: 50, width: 50, justifyContent: 'center', alignItems: 'center', color: COLORS }]} 
+      onPress={seleccionarArchivo}
+    >
+      <Ionicons name="cloud-upload" size={24} color={COLORS.accent} />
+    </TouchableOpacity>
+  </View>
+
+  <StarRating calificacion={calificacion} setCalificacion={setCalificacion} />
+  
+  <TouchableOpacity style={styles.btnAction} onPress={procesarFormulario}>
+    <Text style={styles.btnActionText}>{modoEdicion ? 'GUARDAR' : 'AÑADIR CANCIÓN'}</Text>
+  </TouchableOpacity>
+</View>
       )}
     </View>
   );
 
   return (
-    <KeyboardAvoidingView 
-      style={styles.container} 
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
+    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      
+      <View style={styles.headerTopBar}>
+        <TouchableOpacity style={styles.userInfo} onPress={onEditProfile}>
+          <Image source={{ uri: obtenerImagenUrl(usuario.foto) }} style={styles.avatar} />
+          <View>
+            <Text style={styles.appName}><Ionicons name="musical-notes" size={14} color={COLORS.accent}/> CocoStereo</Text>
+            <Text style={styles.userName}>{usuario.nombre}</Text>
+          </View>
+        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', gap: 15 }}>
+          <TouchableOpacity style={styles.iconBtn} onPress={onGoToPlaylists}>
+            <Ionicons name="albums" size={24} color={COLORS.accent} />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.iconBtn} onPress={onLogout}>
+            <Ionicons name="log-out-outline" size={24} color={COLORS.textSecondary} />
+          </TouchableOpacity>
+        </View>
+      </View>
+
       <FlatList 
         data={canciones}
         keyExtractor={item => item.id.toString()}
-        ListHeaderComponent={renderHeader}
+        ListHeaderComponent={renderFormulario()} 
         showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled" 
         contentContainerStyle={{ paddingBottom: 130 }} 
         renderItem={({item, index}) => (
-          <View style={[styles.item, indiceActual === index && { borderColor: COLORS.accentSecondary, borderWidth: 2 }]}>
+          <View style={[styles.item, indiceActual === index && { borderColor: COLORS.accent }]}>
             <Checkbox value={seleccionadas.includes(item.id)} onValueChange={() => toggleSeleccion(item.id)} color={seleccionadas.includes(item.id) ? COLORS.accent : undefined} style={{ marginRight: 15 }} />
-            
             <TouchableOpacity style={{ flex: 1 }} onPress={() => playSong(index)}>
-              <Text style={{color: indiceActual === index ? COLORS.accentSecondary : '#FFF', fontSize: 18, fontWeight: 'bold'}}>{item.titulo}</Text>
-              <Text style={{color: COLORS.textSecondary, marginBottom: 4}}>{item.artista}</Text>
+              <Text style={{color: indiceActual === index ? COLORS.accent : COLORS.text, fontSize: 16, fontWeight: 'bold'}}>{item.titulo}</Text>
+              <Text style={{color: COLORS.textSecondary, marginBottom: 4, fontSize: 12}}>{item.artista}</Text>
               <StarRating calificacion={item.calificacion} readOnly={true} />
             </TouchableOpacity>
-            
-            <TouchableOpacity onPress={() => { setTitulo(item.titulo); setArtista(item.artista); setGenero(item.genero || ''); setUrlAudio(item.url_audio || ''); setCalificacion(item.calificacion || 0); setModoEdicion(item.id); }} style={{ padding: 10 }}>
-              <Ionicons name="pencil" size={24} color={COLORS.textSecondary} />
+            <TouchableOpacity 
+              onPress={() => { 
+                setTitulo(item.titulo); 
+                setArtista(item.artista); 
+                setGenero(item.genero || ''); 
+                setUrlAudio(item.url_audio || ''); 
+                setCalificacion(item.calificacion || 0); 
+                setModoEdicion(item.id); 
+              }} 
+              style={{ padding: 10 }}
+            >
+              <Ionicons name="pencil" size={20} color={COLORS.textSecondary} />
             </TouchableOpacity>
+
+            <TouchableOpacity onPress={() => confirmarEliminarCancion(item.id)} style={{ padding: 10 }}>
+                <Ionicons name="trash" size={20} color="#FF3B30" />
+              </TouchableOpacity>
           </View>
         )}
       />
 
-      {/* MODALES Y REPRODUCTOR FUERA DE LA LISTA */}
       <Modal visible={modalSeleccionarVisible} transparent={true} animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>AÑADIR A PLAYLIST</Text>
             
             <TouchableOpacity 
-              style={[styles.playlistRow, { borderColor: COLORS.accent, borderStyle: 'dashed', backgroundColor: 'transparent' }]} 
+              style={styles.playlistRowNuevo} 
               onPress={() => { setModalSeleccionarVisible(false); setModalPlaylistVisible(true); }}
             >
               <Ionicons name="add-circle" size={24} color={COLORS.accent} style={{ marginRight: 10 }} />
-              <Text style={{ color: COLORS.accent, fontWeight: 'bold', fontSize: 16 }}>Nueva Playlist...</Text>
+              <Text style={{ color: COLORS.accent, fontWeight: 'bold', fontSize: 16 }}>Crear Nueva Playlist</Text>
             </TouchableOpacity>
 
             <FlatList 
@@ -348,13 +282,13 @@ export default function HomeView({ usuario, onLogout, onEditProfile, setIsPlayin
               style={{ maxHeight: 250, marginTop: 10 }}
               renderItem={({item}) => (
                 <TouchableOpacity style={styles.playlistRow} onPress={() => agregarAPlaylistExistente(item.id)}>
-                  <Ionicons name="musical-notes" size={20} color={COLORS.accentSecondary} style={{ marginRight: 10 }} />
-                  <Text style={{ color: '#FFF', fontSize: 16 }}>{item.nombre}</Text>
+                  <Ionicons name="folder" size={20} color={COLORS.primaryLight} style={{ marginRight: 10 }} />
+                  <Text style={{ color: COLORS.text, fontSize: 16 }}>{item.nombre}</Text>
                 </TouchableOpacity>
             )} />
             
-            <TouchableOpacity style={[styles.btnAñadir, { backgroundColor: '#FF3B30', marginTop: 15 }]} onPress={() => setModalSeleccionarVisible(false)}>
-              <Text style={styles.btnText}>CANCELAR</Text>
+            <TouchableOpacity style={styles.btnCancelar} onPress={() => setModalSeleccionarVisible(false)}>
+              <Text style={styles.btnCancelarText}>CANCELAR</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -364,29 +298,13 @@ export default function HomeView({ usuario, onLogout, onEditProfile, setIsPlayin
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>NUEVA PLAYLIST</Text>
-            
-            {fotoPlaylist ? (
-                <Image source={{ uri: fotoPlaylist.startsWith('/') ? `${API_URL}${fotoPlaylist}` : fotoPlaylist }} style={{ width: 100, height: 100, borderRadius: 10, alignSelf: 'center', marginBottom: 15, borderWidth: 2, borderColor: COLORS.accent }} />
-            ) : null}
-
-            <AnimatedInput placeholder="Nombre de la Playlist" value={nombrePlaylist} onChangeText={setNombrePlaylist} />
-            <AnimatedInput placeholder="Descripción (Opcional)" value={descPlaylist} onChangeText={setDescPlaylist} />
-            
-            <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center', marginBottom: 10 }}>
-              <View style={{ flex: 1 }}>
-                <AnimatedInput placeholder="URL de Portada o Imagen Local" value={fotoPlaylist} onChangeText={setFotoPlaylist} style={{ marginBottom: 0 }} />
-              </View>
-              <TouchableOpacity style={styles.btnUpload} onPress={seleccionarFotoPlaylist}>
-                <Ionicons name="image" size={24} color="#FFF" />
-              </TouchableOpacity>
-            </View>
-            
+            <TextInput style={styles.inputNeumorphic} placeholder="Nombre de la Playlist" value={nombrePlaylist} onChangeText={setNombrePlaylist} placeholderTextColor={COLORS.textSecondary} />
             <View style={{ flexDirection: 'row', gap: 10, marginTop: 15 }}>
-              <TouchableOpacity style={[styles.btnAñadir, { flex: 1, backgroundColor: COLORS.textSecondary }]} onPress={() => setModalPlaylistVisible(false)}>
-                <Text style={styles.btnText}>CANCELAR</Text>
+              <TouchableOpacity style={[styles.btnAction, { flex: 1, backgroundColor: COLORS.surfaceInset }]} onPress={() => setModalPlaylistVisible(false)}>
+                <Text style={{color: COLORS.text, fontWeight: 'bold'}}>CANCELAR</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.btnAñadir, { flex: 1, backgroundColor: COLORS.accent }]} onPress={guardarPlaylist}>
-                <Text style={styles.btnText}>CREAR</Text>
+              <TouchableOpacity style={[styles.btnAction, { flex: 1 }]} onPress={guardarPlaylistNueva}>
+                <Text style={styles.btnActionText}>CREAR</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -402,24 +320,25 @@ export default function HomeView({ usuario, onLogout, onEditProfile, setIsPlayin
 
 const styles = StyleSheet.create({
   container: { flex: 1, paddingTop: 50, paddingHorizontal: 20 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-  userInfo: { flexDirection: 'row', alignItems: 'center', padding: 8, backgroundColor: 'rgba(25, 5, 45, 0.5)', borderRadius: 12, borderWidth: 1, borderColor: COLORS.border },
-  avatar: { width: 45, height: 45, borderRadius: 25, borderWidth: 2, borderColor: COLORS.accent, marginRight: 10 },
-  appName: { color: COLORS.accent, fontWeight: '900', fontSize: 12, textTransform: 'uppercase', letterSpacing: 1 },
-  userName: { color: COLORS.textPrimary, fontSize: 14, fontWeight: 'bold' },
-  form: { backgroundColor: COLORS.cardBackground, padding: 20, borderRadius: 15, marginBottom: 20, borderWidth: 1, borderColor: COLORS.border },
-  btnUpload: { backgroundColor: '#4A148C', padding: 12, borderRadius: 10, justifyContent: 'center', alignItems: 'center', height: 48 },
-  btnAñadir: { padding: 15, borderRadius: 10, alignItems: 'center', justifyContent: 'center', marginTop: 10 },
-  btnText: { fontWeight: '900', letterSpacing: 1, color: '#FFF' },
-  item: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.cardBackground, padding: 15, borderRadius: 10, marginBottom: 10, borderWidth: 1, borderColor: COLORS.border },
-  actionBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: COLORS.cardBackground, padding: 15, borderRadius: 15, marginBottom: 20, borderWidth: 1, borderColor: COLORS.accentSecondary },
-  actionText: { color: '#FFF', fontWeight: 'bold', fontSize: 16 },
-  actionBtn: { padding: 12, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
-  btnCrearPlaylist: { backgroundColor: COLORS.accent, width: 65, height: 65, justifyContent: 'center', alignItems: 'center', borderRadius: 8, padding: 5 },
-  circlePlus: { backgroundColor: '#FFF', borderRadius: 15, width: 26, height: 26, justifyContent: 'center', alignItems: 'center', marginBottom: 4 },
-  btnCrearPlaylistText: { color: '#000', fontSize: 11, fontWeight: 'bold' },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', padding: 20 },
-  modalContent: { backgroundColor: COLORS.cardBackground, padding: 25, borderRadius: 20, borderWidth: 1, borderColor: COLORS.accent },
-  modalTitle: { color: COLORS.textPrimary, fontSize: 20, fontWeight: 'bold', textAlign: 'center', marginBottom: 20, letterSpacing: 2 },
-  playlistRow: { flexDirection: 'row', alignItems: 'center', padding: 15, backgroundColor: 'rgba(25,5,45,0.4)', borderRadius: 10, marginBottom: 10, borderWidth: 1, borderColor: COLORS.border }
+  headerTopBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, zIndex: 100 },
+  userInfo: { flexDirection: 'row', alignItems: 'center', padding: 8, backgroundColor: COLORS.surface, borderRadius: 30, borderWidth: 1, borderColor: COLORS.borderHighlight, shadowColor: '#000', shadowOffset: { width: 2, height: 2 }, shadowOpacity: 0.5, shadowRadius: 3, elevation: 5 },
+  avatar: { width: 40, height: 40, borderRadius: 20, marginRight: 10 },
+  appName: { color: COLORS.accent, fontWeight: '900', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1 },
+  userName: { color: COLORS.text, fontSize: 13, fontWeight: 'bold' },
+  iconBtn: { backgroundColor: COLORS.surface, padding: 10, borderRadius: 20, borderWidth: 1, borderColor: COLORS.borderHighlight, shadowColor: '#000', shadowOffset: { width: 2, height: 2 }, shadowOpacity: 0.3, shadowRadius: 3 },
+  form: { backgroundColor: COLORS.surface, padding: 20, borderRadius: 15, marginBottom: 20, borderWidth: 1, borderColor: COLORS.borderHighlight, shadowColor: '#000', shadowOffset: { width: 4, height: 4 }, shadowOpacity: 0.3, shadowRadius: 5 },
+  inputNeumorphic: { backgroundColor: COLORS.surfaceInset, color: COLORS.text, padding: 16, fontSize: 15, borderRadius: 10, borderWidth: 1, borderColor: COLORS.borderShadow, marginBottom: 15 },
+  btnAction: { backgroundColor: COLORS.accent, padding: 16, borderRadius: 10, alignItems: 'center', marginTop: 15, shadowColor: COLORS.accent, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 5 },
+  btnActionText: { color: '#000', fontWeight: 'bold', fontSize: 14, letterSpacing: 1 },
+  item: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.surface, padding: 15, borderRadius: 12, marginBottom: 12, borderWidth: 1, borderColor: COLORS.borderHighlight },
+  actionBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: COLORS.surface, padding: 15, borderRadius: 15, marginBottom: 20, borderWidth: 1, borderColor: COLORS.borderHighlight },
+  actionText: { color: COLORS.text, fontWeight: 'bold', fontSize: 16 },
+  btnAccionMasiva: { backgroundColor: COLORS.accent, flexDirection: 'row', padding: 12, borderRadius: 10, alignItems: 'center' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', padding: 20 },
+  modalContent: { backgroundColor: COLORS.surface, padding: 25, borderRadius: 20, borderWidth: 1, borderColor: COLORS.borderHighlight },
+  modalTitle: { color: COLORS.text, fontSize: 20, fontWeight: 'bold', textAlign: 'center', marginBottom: 20 },
+  playlistRowNuevo: { flexDirection: 'row', alignItems: 'center', padding: 15, borderRadius: 10, marginBottom: 10, borderWidth: 1, borderColor: COLORS.accent, borderStyle: 'dashed' },
+  playlistRow: { flexDirection: 'row', alignItems: 'center', padding: 15, backgroundColor: COLORS.surfaceInset, borderRadius: 10, marginBottom: 10 },
+  btnCancelar: { backgroundColor: COLORS.surfaceInset, padding: 15, borderRadius: 10, alignItems: 'center', marginTop: 10, borderWidth: 1, borderColor: COLORS.borderShadow },
+  btnCancelarText: { color: COLORS.text, fontWeight: 'bold' }
 });

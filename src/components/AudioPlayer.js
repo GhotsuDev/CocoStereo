@@ -1,163 +1,153 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native'; // <-- Añadí Platform
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Platform, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import Slider from '@react-native-community/slider';
-import { Audio } from 'expo-av';
-import Constants from 'expo-constants'; // <-- Añadí Constants para la IP automática
+import { Audio } from 'expo-av'; // 🟢 MOTOR DE AUDIO REAL
 import { COLORS } from '../styles/colors';
+import Constants from 'expo-constants';
 
-// --- MAGIA: OBTENCIÓN AUTOMÁTICA DE IP ---
 const getApiUrl = () => {
   if (Platform.OS === 'web') return 'http://localhost:3000';
   const debuggerHost = Constants.expoConfig?.hostUri;
-  if (debuggerHost) {
-    const ip = debuggerHost.split(':')[0];
-    return `http://${ip}:3000`;
-  }
-  return 'http://172.30.66.91:3000'; // Fallback
+  if (debuggerHost) return `http://${debuggerHost.split(':')[0]}:3000`;
+  return 'http://172.30.66.91:3000'; 
 };
-
 const API_URL = getApiUrl();
-// -----------------------------------------
 
 export default function AudioPlayer({ cancionActual, onNext, onPrev, setIsPlayingGlobal, onClose }) {
-  const [sound, setSound] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [duration, setDuration] = useState(0);
-  const [position, setPosition] = useState(0);
-  const [errorCarga, setErrorCarga] = useState(false); 
+  const [progress, setProgress] = useState(0);
+  const soundRef = useRef(null);
 
-  const formatTime = (millis) => {
-    if (!millis) return "00:00";
-    const minutes = Math.floor(millis / 60000);
-    const seconds = ((millis % 60000) / 1000).toFixed(0);
-    return `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
-  };
+  // 🟢 LÓGICA CORE: CARGAR Y REPRODUCIR 🟢
+  useEffect(() => {
+    let isMounted = true;
 
-  async function cargarCancion() {
-    if (sound) await sound.unloadAsync(); 
-    if (!cancionActual?.url_audio) {
-        console.warn("Esta canción no tiene URL de audio asignada.");
-        setErrorCarga(true);
-        return;
-    }
+    const cargarAudio = async () => {
+      // Si ya hay algo sonando, lo destruimos primero
+      if (soundRef.current) {
+        await soundRef.current.unloadAsync();
+        soundRef.current = null;
+      }
 
-    try {
-      setErrorCarga(false);
-      
-      // ⚠️ Ahora usa la IP dinámica automáticamente
-      const uri = cancionActual.url_audio.startsWith('/uploads') 
+      if (!cancionActual || !cancionActual.url_audio) return;
+
+      // Formatear la URL por si es un archivo local del backend
+      const audioUri = cancionActual.url_audio.startsWith('/') 
         ? `${API_URL}${cancionActual.url_audio}` 
         : cancionActual.url_audio;
-        
-      console.log("Intentando reproducir URI:", uri); 
 
-      const { sound: nuevoSonido } = await Audio.Sound.createAsync(
-        { uri }, { shouldPlay: true }, onPlaybackStatusUpdate
-      );
-      setSound(nuevoSonido);
-      setIsPlaying(true);
-      setIsPlayingGlobal(true);
-    } catch (error) {
-      console.error('Error cargando audio en URI:', cancionActual.url_audio, error);
-      setErrorCarga(true);
-    }
-  }
+      try {
+        const { sound } = await Audio.Sound.createAsync(
+          { uri: audioUri },
+          { shouldPlay: true }, // Auto-play al cargar
+          (status) => {
+            if (status.isLoaded && isMounted) {
+              setProgress(status.positionMillis / (status.durationMillis || 1));
+              setIsPlaying(status.isPlaying);
+              
+              // Si la canción termina, saltar a la siguiente automáticamente
+              if (status.didJustFinish) {
+                onNext();
+              }
+            }
+          }
+        );
+        soundRef.current = sound;
+      } catch (error) {
+        console.error("Error al reproducir el audio:", error);
+      }
+    };
 
-  useEffect(() => {
-    cargarCancion();
-    return sound ? () => sound.unloadAsync() : undefined;
+    cargarAudio();
+
+    // Limpieza al desmontar o cambiar de canción
+    return () => {
+      isMounted = false;
+      if (soundRef.current) {
+        soundRef.current.unloadAsync();
+      }
+    };
   }, [cancionActual]);
 
-  const onPlaybackStatusUpdate = (status) => {
-    if (status.isLoaded) {
-      setPosition(status.positionMillis);
-      setDuration(status.durationMillis);
-      if (status.didJustFinish) onNext(); 
-    } else if (status.error) {
-      console.error(`Error de Playback: ${status.error}`);
-    }
-  };
-
   const togglePlayPause = async () => {
-    if (!sound) return;
+    if (!soundRef.current) return;
     if (isPlaying) {
-      await sound.pauseAsync();
-      setIsPlaying(false);
-      setIsPlayingGlobal(false);
+      await soundRef.current.pauseAsync();
     } else {
-      await sound.playAsync();
-      setIsPlaying(true);
-      setIsPlayingGlobal(true);
+      await soundRef.current.playAsync();
     }
   };
 
-  const handleSeek = async (value) => { if (sound) await sound.setPositionAsync(value); };
-
-  const handleClose = async () => {
-    if (sound) await sound.unloadAsync();
-    setIsPlayingGlobal(false);
-    onClose();
-  };
+  // Efecto visual global
+  useEffect(() => {
+    setIsPlayingGlobal(isPlaying);
+    return () => setIsPlayingGlobal(false);
+  }, [isPlaying]);
 
   if (!cancionActual) return null;
 
   return (
-    <View style={styles.container}>
-      <TouchableOpacity style={styles.closeBtn} onPress={handleClose}>
-        <Ionicons name="close-circle" size={28} color={COLORS.textSecondary} />
-      </TouchableOpacity>
+    <View style={styles.floatingContainer}>
+      <View style={styles.playerCard}>
+        
+        <View style={styles.header}>
+          <TouchableOpacity onPress={onClose} style={styles.btnClose}>
+            <Ionicons name="chevron-down" size={24} color={COLORS.textSecondary} />
+          </TouchableOpacity>
+          <Text style={styles.nowPlayingText}>REPRODUCIENDO AHORA</Text>
+          <View style={{ width: 24 }} />
+        </View>
 
-      <Text style={styles.title}>
-        {cancionActual.titulo} - <Text style={styles.artist}>{cancionActual.artista}</Text>
-      </Text>
-      
-      {/* Mensaje de error visual si la URL falla */}
-      {errorCarga && (
-          <Text style={{ color: '#FF3B30', textAlign: 'center', fontSize: 12, marginBottom: 5 }}>
-             No se pudo cargar el audio. (Sube un .mp3 o usa un link directo)
-          </Text>
-      )}
+        <View style={styles.songInfo}>
+          <View style={styles.coverArtPlaceholder}>
+            <Ionicons name="musical-notes" size={40} color={COLORS.accent} />
+          </View>
+          <View style={styles.textContainer}>
+            <Text style={styles.title} numberOfLines={1}>{cancionActual.titulo}</Text>
+            <Text style={styles.artist} numberOfLines={1}>{cancionActual.artista}</Text>
+          </View>
+        </View>
 
-      <View style={styles.sliderContainer}>
-        <Text style={styles.time}>{formatTime(position)}</Text>
-        <Slider
-          style={styles.slider}
-          minimumValue={0}
-          maximumValue={duration > 0 ? duration : 1} 
-          value={position}
-          onSlidingComplete={handleSeek}
-          minimumTrackTintColor={COLORS.accentSecondary}
-          maximumTrackTintColor={COLORS.textSecondary}
-          thumbTintColor={COLORS.accent}
-          disabled={errorCarga}
-        />
-        <Text style={styles.time}>{formatTime(duration)}</Text>
-      </View>
+        <View style={styles.progressBarContainer}>
+          <View style={styles.progressBackground}>
+            <View style={[styles.progressFill, { width: `${progress * 100}%` }]} />
+          </View>
+        </View>
 
-      <View style={styles.controls}>
-        <TouchableOpacity onPress={onPrev}>
-          <Ionicons name="play-skip-back" size={32} color={errorCarga ? COLORS.textSecondary : COLORS.textPrimary} />
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.playBtn, errorCarga && { backgroundColor: COLORS.textSecondary }]} onPress={togglePlayPause} disabled={errorCarga}>
-          <Ionicons name={isPlaying ? "pause" : "play"} size={36} color="#000" style={{ marginLeft: isPlaying ? 0 : 4 }} />
-        </TouchableOpacity>
-        <TouchableOpacity onPress={onNext}>
-          <Ionicons name="play-skip-forward" size={32} color={errorCarga ? COLORS.textSecondary : COLORS.textPrimary} />
-        </TouchableOpacity>
+        <View style={styles.controls}>
+          <TouchableOpacity style={styles.controlBtn} onPress={onPrev}>
+            <Ionicons name="play-skip-back" size={24} color={COLORS.text} />
+          </TouchableOpacity>
+          
+          <TouchableOpacity style={styles.playBtn} onPress={togglePlayPause}>
+            <Ionicons name={isPlaying ? "pause" : "play"} size={32} color={COLORS.background} />
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.controlBtn} onPress={onNext}>
+            <Ionicons name="play-skip-forward" size={24} color={COLORS.text} />
+          </TouchableOpacity>
+        </View>
+
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { backgroundColor: 'rgba(11, 0, 22, 0.95)', padding: 15, borderTopWidth: 1, borderColor: COLORS.accent, position: 'absolute', bottom: 0, width: '100%', elevation: 10, zIndex: 100 },
-  closeBtn: { position: 'absolute', top: 10, right: 15, zIndex: 10 },
-  title: { color: COLORS.textPrimary, fontWeight: 'bold', textAlign: 'center', marginBottom: 10, paddingHorizontal: 30 },
-  artist: { color: COLORS.textSecondary, fontWeight: 'normal' },
-  sliderContainer: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 10 },
-  slider: { flex: 1, height: 40, marginHorizontal: 10 },
-  time: { color: COLORS.textSecondary, fontSize: 12 },
-  controls: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 30, marginTop: 5 },
-  playBtn: { width: 60, height: 60, borderRadius: 30, backgroundColor: COLORS.accentSecondary, justifyContent: 'center', alignItems: 'center' }
-}); 
+  floatingContainer: { position: 'absolute', bottom: Platform.OS === 'web' ? 20 : 30, left: 20, right: 20, zIndex: 1000 },
+  playerCard: { backgroundColor: COLORS.surface, borderRadius: 20, padding: 20, borderWidth: 1, borderColor: COLORS.borderHighlight, shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.5, shadowRadius: 15, elevation: 15 },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 },
+  btnClose: { backgroundColor: COLORS.surfaceInset, borderRadius: 12, padding: 5, borderWidth: 1, borderColor: COLORS.borderShadow },
+  nowPlayingText: { color: COLORS.accent, fontSize: 10, fontWeight: '900', letterSpacing: 2 },
+  songInfo: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
+  coverArtPlaceholder: { width: 60, height: 60, backgroundColor: COLORS.surfaceInset, borderRadius: 15, justifyContent: 'center', alignItems: 'center', marginRight: 15, borderWidth: 1, borderColor: COLORS.borderShadow },
+  textContainer: { flex: 1 },
+  title: { color: COLORS.text, fontSize: 18, fontWeight: 'bold', marginBottom: 4 },
+  artist: { color: COLORS.textSecondary, fontSize: 14 },
+  progressBarContainer: { marginBottom: 20 },
+  progressBackground: { height: 8, backgroundColor: COLORS.surfaceInset, borderRadius: 4, borderWidth: 1, borderColor: COLORS.borderShadow, overflow: 'hidden' },
+  progressFill: { height: '100%', backgroundColor: COLORS.accent, borderRadius: 4, shadowColor: COLORS.accent, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.8, shadowRadius: 5 },
+  controls: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 30 },
+  controlBtn: { backgroundColor: COLORS.surface, padding: 15, borderRadius: 20, borderWidth: 1, borderColor: COLORS.borderHighlight, shadowColor: '#000', shadowOffset: { width: 3, height: 3 }, shadowOpacity: 0.4, shadowRadius: 5 },
+  playBtn: { backgroundColor: COLORS.accent, padding: 20, borderRadius: 30, shadowColor: COLORS.accent, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.5, shadowRadius: 8, elevation: 8 }
+});

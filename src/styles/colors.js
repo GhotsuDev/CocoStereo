@@ -1,12 +1,13 @@
 export const COLORS = {
-  background: '#0B0016',       // Fondo ultra oscuro
-  cardBackground: 'rgba(25, 5, 45, 0.7)', // Morado oscuro translúcido
-  accent: '#B026FF',           // Morado Neón
-  accentSecondary: '#00F3FF',  // Cyan Neón (para contrastar)
-  textPrimary: '#FFFFFF',
-  textSecondary: '#A993C9',    // Gris morado
-  inputBackground: 'rgba(15, 0, 30, 0.8)',
-  border: '#4A148C',
-  starActive: '#00F3FF',       // Estrellas en cyan neón
-  starInactive: '#331A4D'
+  background: '#121910', 
+  surface: '#1A2417',    
+  surfaceTransparent: 'rgba(26, 36, 23, 0.65)', // 🟢 Cristal elevado
+  surfaceInset: '#0B1009', 
+  surfaceInsetTransparent: 'rgba(11, 16, 9, 0.45)', // 🟢 Cristal hundido
+  primaryLight: '#43533D',
+  accent: '#FF8C00',     
+  text: '#FFFFFF',
+  textSecondary: '#8B9C84',
+  borderHighlight: 'rgba(67, 83, 61, 0.5)', // Bordes translúcidos
+  borderShadow: 'rgba(0, 0, 0, 0.6)',
 };
